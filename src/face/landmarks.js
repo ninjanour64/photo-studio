@@ -41,14 +41,16 @@ export function sampleSkin(img, P, m) {
   return n ? acc.map((v) => v / n) : [180, 140, 120];
 }
 
-// Similarity of a colour to the skin colour, 0..1. Compares chromaticity mostly, so shadowed
-// skin still counts, plus a loose brightness term so a white collar doesn't.
+// Similarity of a colour to the skin colour, 0..1. Compares chromaticity mostly. Brightness is
+// asymmetric: skin in shadow (the underside of the jaw is usually darker) still counts down to
+// about half the brightness, while anything brighter (a white collar) or much darker (black
+// clothing, where chromaticity is just noise) does not.
 export function skinLikeness(r, g, b, skin) {
   const sum = r + g + b + 1, ss = skin[0] + skin[1] + skin[2] + 1;
   const dr = r / sum - skin[0] / ss, dg = g / sum - skin[1] / ss;
   const chroma = (dr * dr + dg * dg) / 0.0016;
   const lum = Math.log((sum / ss) + 1e-3);
-  const bright = (lum * lum) / 0.35;
+  const bright = lum > 0 ? (lum * lum) / 0.15 : Math.max(0, -lum - 0.55) ** 2 / 0.06;
   return Math.exp(-(chroma + bright));
 }
 
