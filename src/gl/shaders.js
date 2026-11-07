@@ -194,18 +194,24 @@ void main() {
   // highlight a little, then blend toward the smooth layer with texture kept.
   float uc = clamp(mA.a * uUnderChin, 0.0, 1.0);
   if (uc > 0.0) {
-    // Only on skin: compare chromaticity with the face's skin, loosely on brightness.
+    // Only on skin: compare chromaticity with the face's skin; shadowed skin still counts.
     vec3 sc = s / (s.r + s.g + s.b + 1e-3), kc = uSkin / (uSkin.r + uSkin.g + uSkin.b + 1e-3);
     vec2 dch = sc.rg - kc.rg;
     float lr = log((s.r + s.g + s.b + 1e-3) / (uSkin.r + uSkin.g + uSkin.b + 1e-3));
-    uc *= clamp(exp(-(dot(dch, dch) / 0.0016 + lr * lr / 0.35)) * 1.4, 0.0, 1.0);
-  }
-  if (uc > 0.0) {
+    float bt = lr > 0.0 ? lr * lr / 0.15 : pow(max(0.0, -lr - 0.55), 2.0) / 0.06;
+    float onSkin = clamp(exp(-(dot(dch, dch) / 0.0016 + bt)) * 1.4, 0.0, 1.0);
+    // Jaw contour: the band where the (feathered) face mask fades out, just under the jaw line.
+    // Its shadow is what makes a jaw read as defined, so keep it and deepen it slightly.
+    float f = mA.b;
+    float contour = smoothstep(0.0, 0.25, mA.a) * clamp(4.0 * f * (1.0 - f), 0.0, 1.0) * (1.0 - step(0.6, f));
+    float neck = uc * (1.0 - contour) * onSkin;
+    // Neck: soften folds and the double-chin crease (lift what sits below the local average,
+    // calm the bulge's highlight), keeping skin texture.
     float lc = luma(c), lsm = luma(s);
-    vec3 even = s + fine * 0.65;
-    c = mix(c, even, uc * 0.75);
-    c += c * max(lsm - lc, 0.0) / max(lc, 0.04) * uc * 0.6;
-    c -= vec3(max(lc - lsm - 0.01, 0.0) * uc * 0.5);
+    c = mix(c, s + fine * 0.65, neck * 0.7);
+    c += c * max(lsm - lc, 0.0) / max(lc, 0.04) * neck * 0.55;
+    c -= vec3(max(lc - lsm - 0.01, 0.0) * neck * 0.5);
+    c *= 1.0 - contour * uUnderChin * onSkin * 0.22;
   }
 
   // Teeth (auto) and whiten (brush): drain yellow, add a little brightness; spare lips/tongue.

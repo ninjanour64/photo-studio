@@ -151,8 +151,9 @@ export class WarpField {
   // lower down is stretched slightly to fill, which reads as a firmer, single chin line.
   tuckUnderChin(f, P, m, amount, img) {
     const jaw = L.jawProfile(P, m);
-    const depth = m.height * 0.3;             // how far down the neck the effect reaches
-    const lift = amount * depth * 0.2;        // well under depth/π keeps the map fold-free
+    const depth = m.height * 0.45;            // how far down the neck the effect reaches
+    // Fold-free as long as lift·6.75/3 < depth (the stretch below can't invert): 0.32 → 0.72.
+    const lift = amount * depth * 0.32;
     const halfW = Math.max(Math.abs(jaw.u0), Math.abs(jaw.u1)) * 1.05;
     const { gw, gh, cx, cy } = this;
     // Bounding box of the affected area in image pixels.
@@ -167,8 +168,8 @@ export class WarpField {
     // Skin weight per cell, blurred so the field stays smooth (no tearing at a collar edge).
     const bw = i1 - i0 + 1, bh = j1 - j0 + 1;
     let skinW = null;
+    const skin = img ? L.sampleSkin(img, P, m) : null;
     if (img && bw > 0 && bh > 0) {
-      const skin = L.sampleSkin(img, P, m);
       skinW = new Float32Array(bw * bh);
       for (let j = 0; j < bh; j++) {
         for (let i = 0; i < bw; i++) {
@@ -180,6 +181,20 @@ export class WarpField {
       const rad = Math.max(1, Math.round((m.width * 0.04) / cx));
       skinW = blurField(blurField(skinW, bw, bh, rad), bw, bh, rad);
     }
+    // How far skin continues straight down from an image point (capped at `max`). Content is
+    // pulled up from below, so the pull must never reach past the skin into a collar or shirt.
+    const skinRun = (x, y, max) => {
+      if (!img) return max;
+      const step = Math.max(1, cy * 0.5);
+      for (let d = step; d <= max; d += step) {
+        const X = Math.round(x + jaw.down[0] * d), Y = Math.round(y + jaw.down[1] * d);
+        if (X < 0 || Y < 0 || X >= img.width || Y >= img.height) return d;
+        const k = (Y * img.width + X) * 4;
+        if (L.skinLikeness(img.data[k], img.data[k + 1], img.data[k + 2], skin) < 0.25) return d;
+      }
+      return max;
+    };
+    const G = new Float32Array(bw * bh);
     for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
         const dx = (i + 0.5) * cx - jaw.origin[0], dy = (j + 0.5) * cy - jaw.origin[1];
@@ -192,7 +207,17 @@ export class WarpField {
         // Sample from further down (content moves up): strongest in the upper part of the band.
         const q = t / depth;
         const g = lift * w * 6.75 * q * (1 - q) * (1 - q);
-        const idx = (j * gw + i) * 2;
+        if (g <= 0.01) continue;
+        G[(j - j0) * bw + (i - i0)] = Math.min(g, 0.6 * skinRun((i + 0.5) * cx, (j + 0.5) * cy, g / 0.6 + cy));
+      }
+    }
+    // Smooth the capped field a little so the caps don't leave kinks.
+    const Gs = blurField(G, bw, bh, 1);
+    for (let j = 0; j < bh; j++) {
+      for (let i = 0; i < bw; i++) {
+        const g = Math.min(Gs[j * bw + i], G[j * bw + i] > 0 ? Infinity : Gs[j * bw + i]);
+        if (g <= 0) continue;
+        const idx = ((j + j0) * gw + i + i0) * 2;
         f[idx] += jaw.down[0] * g;
         f[idx + 1] += jaw.down[1] * g;
       }
