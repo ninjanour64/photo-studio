@@ -1,5 +1,5 @@
 // Rasterises feature masks from face landmarks.
-//   mask A (wide feather):  R skin, G under-eye crescent, B whole face
+//   mask A (wide feather):  R skin, G under-eye crescent, B whole face, A under-chin/neck
 //   mask B (tight feather): R teeth, G eyes, B irises, A lips
 
 import * as L from './landmarks.js';
@@ -86,6 +86,24 @@ function drawFace(P, s, ly) {
   }
   ue.globalCompositeOperation = 'source-over';
 
+  // Under the chin: a band starting a little below the jaw line (so the jaw's defining shadow is
+  // kept) and reaching down the neck, deepest under the chin and tapering at the jaw corners.
+  {
+    const jaw = L.jawProfile(P, m);
+    const depth = m.height * 0.36;
+    const halfW = Math.max(Math.abs(jaw.u0), Math.abs(jaw.u1));
+    const toImg = (u, v) => [(jaw.origin[0] + m.right[0] * u + jaw.down[0] * v) * s, (jaw.origin[1] + m.right[1] * u + jaw.down[1] * v) * s];
+    const top = [], bottom = [];
+    for (let k = 0; k <= 16; k++) {
+      const u = -halfW * 0.92 + (k / 16) * halfW * 1.84;
+      const taper = Math.cos((u / halfW) * Math.PI * 0.5);
+      top.push(toImg(u, jaw.at(u) + depth * 0.07));
+      bottom.push(toImg(u, jaw.at(u) + depth * (0.25 + 0.75 * taper)));
+    }
+    path(ly.chin.ctx, [...top, ...bottom.reverse()]);
+    ly.chin.ctx.fill();
+  }
+
   curve(ly.face.ctx, pick(P, L.FACE_OVAL, s));
   ly.face.ctx.fill();
 
@@ -140,11 +158,11 @@ function pack(layers, w, h) {
 export function buildMasks(faces, W, H, mW, mH) {
   const s = mW / W;
   const ly = {};
-  for (const k of ['skin', 'under', 'face', 'teeth', 'eyes', 'iris', 'lips']) ly[k] = layer(mW, mH);
+  for (const k of ['skin', 'under', 'face', 'chin', 'teeth', 'eyes', 'iris', 'lips']) ly[k] = layer(mW, mH);
   let fw = 0;
   for (const P of faces) fw = Math.max(fw, drawFace(P, s, ly).width * s);
   return {
-    a: pack([ly.skin, ly.under, ly.face, null], mW, mH),
+    a: pack([ly.skin, ly.under, ly.face, ly.chin], mW, mH),
     b: pack([ly.teeth, ly.eyes, ly.iris, ly.lips], mW, mH),
     sigmaA: Math.max(1, fw * 0.022),
     sigmaB: Math.max(0.6, fw * 0.004),

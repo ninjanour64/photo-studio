@@ -6,7 +6,7 @@ import { analyze, MAGIC_FACE } from './auto.js';
 import { makeFrame } from './geometry.js';
 import { WarpField } from './face/warp.js';
 import { buildMasks, skinMaskForFace } from './face/masks.js';
-import { faceMetrics, toPixels } from './face/landmarks.js';
+import { faceMetrics, toPixels, sampleSkin } from './face/landmarks.js';
 import * as detect from './face/detect.js';
 import { heal, findBlemishes, putRect } from './retouch/heal.js';
 import { buildPanel, TABS } from './ui/panels.js';
@@ -245,6 +245,8 @@ class App {
       this.faceStatus = 'done';
       if (this.faces.length) {
         const m = buildMasks(this.faces, W, H, this.mW, this.mH);
+        const skins = this.faces.map((P) => sampleSkin(this.img, P, faceMetrics(P)));
+        this.skinRGB = [0, 1, 2].map((c) => skins.reduce((a, s) => a + s[c], 0) / skins.length / 255);
         this.pipe.setAutoMasks(m.a, m.b, m.sigmaA, m.sigmaB);
         const widths = this.faces.map((P) => faceMetrics(P).width).sort((a, b) => a - b);
         this.pipe.setSmoothRadius(Math.max(2, widths[widths.length >> 1] * 0.022));
@@ -287,7 +289,7 @@ class App {
   // Shape sliders changed: rebuild the face part of the displacement field.
   updateWarp() {
     if (!this.warp) return;
-    this.warp.setFaces(this.faces, this.faces.map((_, i) => this.params.shape[i]));
+    this.warp.setFaces(this.faces, this.faces.map((_, i) => this.params.shape[i]), this.img);
     this.pipe.setDisp(this.warp.combine(), this.warp.gw, this.warp.gh);
     this.requestRender();
   }
@@ -448,6 +450,9 @@ class App {
     return {
       smooth: has ? f.smooth / 100 : 0, shine: has ? f.shine / 100 : 0, underEye: has ? f.underEye / 100 : 0,
       teeth: has ? f.teeth / 100 : 0, eyes: has ? f.eyes / 100 : 0,
+      // Neck-fold softening follows the strongest under-chin setting among the faces.
+      skin: this.skinRGB || [0.7, 0.55, 0.45],
+      underChin: has ? Math.max(0, ...this.faces.map((_, i) => this.params.shape[i]?.underChin || 0)) / 100 : 0,
       eyeColor: eye || [0, 0, 0], eyeColorAmt: has && eye ? f.eyeColorAmt / 100 : 0,
       lipColor: lip || [0, 0, 0], lipAmt: has && lip ? f.lipAmt / 100 : 0,
     };

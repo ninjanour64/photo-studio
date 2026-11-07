@@ -133,7 +133,7 @@ void main() {
 export const RETOUCH_FS = HEAD + `
 uniform sampler2D uW;
 uniform sampler2D uS;
-uniform sampler2D uMaskA;  // skin, under-eye, whole face, -
+uniform sampler2D uMaskA;  // skin, under-eye, whole face, under-chin
 uniform sampler2D uMaskB;  // teeth, eyes, irises, lips
 uniform sampler2D uBrush;  // smooth, whiten, details, protect
 uniform sampler2D uPerson;
@@ -141,8 +141,9 @@ uniform sampler2D uBg;
 uniform sampler2D uDisp;
 uniform vec2 uImgSize;
 uniform vec2 uOut;
-uniform float uSmooth, uShine, uUnderEye, uTeeth, uEyes, uEyeColorAmt, uLipAmt;
+uniform float uSmooth, uShine, uUnderEye, uUnderChin, uTeeth, uEyes, uEyeColorAmt, uLipAmt;
 uniform vec3 uEyeColor, uLipColor;
+uniform vec3 uSkin;      // average skin colour of the faces
 uniform int uBgMode;     // 0 none, 1 blur, 2 b&w, 3 remove
 uniform float uBgLight;
 uniform float uHasPerson;
@@ -187,6 +188,25 @@ void main() {
   vec3 lifted = (s + fine * 0.5) * (1.0 + 0.2 * (1.0 - luma(s)));
   lifted = mix(lifted, vec3(luma(lifted)), 0.15);
   c = mix(c, lifted, clamp(ue, 0.0, 1.0) * 0.85);
+
+  // Under the chin: soften neck folds and the double-chin crease. Folds are darker than their
+  // surroundings, so lift whatever sits below the local (edge-aware) average, and calm the bulge's
+  // highlight a little, then blend toward the smooth layer with texture kept.
+  float uc = clamp(mA.a * uUnderChin, 0.0, 1.0);
+  if (uc > 0.0) {
+    // Only on skin: compare chromaticity with the face's skin, loosely on brightness.
+    vec3 sc = s / (s.r + s.g + s.b + 1e-3), kc = uSkin / (uSkin.r + uSkin.g + uSkin.b + 1e-3);
+    vec2 dch = sc.rg - kc.rg;
+    float lr = log((s.r + s.g + s.b + 1e-3) / (uSkin.r + uSkin.g + uSkin.b + 1e-3));
+    uc *= clamp(exp(-(dot(dch, dch) / 0.0016 + lr * lr / 0.35)) * 1.4, 0.0, 1.0);
+  }
+  if (uc > 0.0) {
+    float lc = luma(c), lsm = luma(s);
+    vec3 even = s + fine * 0.65;
+    c = mix(c, even, uc * 0.75);
+    c += c * max(lsm - lc, 0.0) / max(lc, 0.04) * uc * 0.6;
+    c -= vec3(max(lc - lsm - 0.01, 0.0) * uc * 0.5);
+  }
 
   // Teeth (auto) and whiten (brush): drain yellow, add a little brightness; spare lips/tongue.
   l = luma(c);

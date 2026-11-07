@@ -86,7 +86,8 @@ export class WarpField {
 
   // ---- face sliders ------------------------------------------------------------------------------
 
-  setFaces(faces, shapes) {
+  // img (optional) lets the under-chin tuck stay on skin.
+  setFaces(faces, shapes, img = null) {
     const f = this.face;
     f.fill(0);
     faces.forEach((P, i) => {
@@ -118,6 +119,7 @@ export class WarpField {
         const down = L.mul(m.up, -1);
         this.move(f, P[152], L.mul(down, k(s.chin) * m.height * 0.07), m.width * 0.3);
       }
+      if (s.underChin > 0) this.tuckUnderChin(f, P, m, k(s.underChin), img);
       if (s.forehead) {
         for (const idx of [10, 109, 338]) this.move(f, P[idx], L.mul(m.up, k(s.forehead) * m.height * 0.035), m.width * 0.32);
       }
@@ -144,6 +146,59 @@ export class WarpField {
     });
   }
 
+  // Under-chin tuck: the band below the jaw line is pulled up toward the jaw. The jaw edge itself
+  // stays put (no change to the face), the soft tissue just under it is compressed, and the neck
+  // lower down is stretched slightly to fill, which reads as a firmer, single chin line.
+  tuckUnderChin(f, P, m, amount, img) {
+    const jaw = L.jawProfile(P, m);
+    const depth = m.height * 0.3;             // how far down the neck the effect reaches
+    const lift = amount * depth * 0.2;        // well under depth/π keeps the map fold-free
+    const halfW = Math.max(Math.abs(jaw.u0), Math.abs(jaw.u1)) * 1.05;
+    const { gw, gh, cx, cy } = this;
+    // Bounding box of the affected area in image pixels.
+    const corners = [];
+    for (const u of [-halfW, halfW]) for (const v of [jaw.at(u) - 2, depth + 2]) {
+      corners.push([jaw.origin[0] + m.right[0] * u + jaw.down[0] * v, jaw.origin[1] + m.right[1] * u + jaw.down[1] * v]);
+    }
+    corners.push([jaw.origin[0] + jaw.down[0] * (depth + jaw.at(0)), jaw.origin[1] + jaw.down[1] * (depth + jaw.at(0))]);
+    const xs = corners.map((p) => p[0]), ys = corners.map((p) => p[1]);
+    const i0 = Math.max(0, Math.floor(Math.min(...xs) / cx) - 1), i1 = Math.min(gw - 1, Math.ceil(Math.max(...xs) / cx) + 1);
+    const j0 = Math.max(0, Math.floor(Math.min(...ys) / cy) - 1), j1 = Math.min(gh - 1, Math.ceil(Math.max(...ys) / cy) + 1);
+    // Skin weight per cell, blurred so the field stays smooth (no tearing at a collar edge).
+    const bw = i1 - i0 + 1, bh = j1 - j0 + 1;
+    let skinW = null;
+    if (img && bw > 0 && bh > 0) {
+      const skin = L.sampleSkin(img, P, m);
+      skinW = new Float32Array(bw * bh);
+      for (let j = 0; j < bh; j++) {
+        for (let i = 0; i < bw; i++) {
+          const x = Math.min(img.width - 1, Math.floor((i0 + i + 0.5) * cx)), y = Math.min(img.height - 1, Math.floor((j0 + j + 0.5) * cy));
+          const k = (y * img.width + x) * 4;
+          skinW[j * bw + i] = L.skinLikeness(img.data[k], img.data[k + 1], img.data[k + 2], skin);
+        }
+      }
+      const rad = Math.max(1, Math.round((m.width * 0.04) / cx));
+      skinW = blurField(blurField(skinW, bw, bh, rad), bw, bh, rad);
+    }
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const dx = (i + 0.5) * cx - jaw.origin[0], dy = (j + 0.5) * cy - jaw.origin[1];
+        const u = dx * m.right[0] + dy * m.right[1];
+        const v = dx * jaw.down[0] + dy * jaw.down[1];
+        const t = v - jaw.at(u);
+        if (t <= 0 || t >= depth || Math.abs(u) >= halfW) continue;
+        const across = 1 - (u / halfW) ** 2;
+        const w = across * across * (skinW ? Math.min(1, skinW[(j - j0) * bw + (i - i0)] * 1.4) : 1);
+        // Sample from further down (content moves up): strongest in the upper part of the band.
+        const q = t / depth;
+        const g = lift * w * 6.75 * q * (1 - q) * (1 - q);
+        const idx = (j * gw + i) * 2;
+        f[idx] += jaw.down[0] * g;
+        f[idx + 1] += jaw.down[1] * g;
+      }
+    }
+  }
+
   // ---- reshape brush -----------------------------------------------------------------------------
 
   push(from, to, r, strength) {
@@ -163,4 +218,24 @@ export class WarpField {
       this.liq[idx] *= f; this.liq[idx + 1] *= f;
     });
   }
+}
+
+// Separable box blur of a scalar field (used to smooth weights).
+function blurField(src, w, h, r) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let s = 0, n = 0;
+      for (let k = -r; k <= r; k++) { const xx = x + k; if (xx >= 0 && xx < w) { s += src[y * w + xx]; n++; } }
+      tmp[y * w + x] = s / n;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let s = 0, n = 0;
+      for (let k = -r; k <= r; k++) { const yy = y + k; if (yy >= 0 && yy < h) { s += tmp[yy * w + x]; n++; } }
+      out[y * w + x] = s / n;
+    }
+  }
+  return out;
 }

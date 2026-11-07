@@ -14,7 +14,7 @@ export const FACE_DEFAULTS = {
 };
 
 export const SHAPE_DEFAULTS = {
-  slim: 0, jaw: 0, chin: 0, forehead: 0, eyes: 0, noseSlim: 0, noseSmall: 0, lips: 0, smile: 0,
+  slim: 0, jaw: 0, chin: 0, underChin: 0, forehead: 0, eyes: 0, noseSlim: 0, noseSmall: 0, lips: 0, smile: 0,
 };
 
 export const BG_DEFAULTS = { mode: 'none', blur: 60, light: 0, fill: 'transparent' };

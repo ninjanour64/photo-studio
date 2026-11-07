@@ -15,8 +15,8 @@ npm run build      # static site in dist/ (any static host works)
 
 | Tab | Tools |
 |---|---|
-| **Magic** | *Fix my photo*: auto light and colour, skin smoothing, automatic blemish removal, brighter eyes and teeth, lifted under-eyes, all on one Strength slider. One-tap ideas: blur background, colour pop, golden hour, B&W, soft glow, square crop. |
-| **Face** | Smooth skin, reduce shine, under-eye circles, remove blemishes, whiten teeth, brighten eyes, eye colour, lip colour. Shape: slim face, jawline, chin, forehead, bigger eyes, slim/smaller nose, fuller lips, smile. With several people you can edit each face separately. |
+| **Magic** | *Fix my photo*: auto light and colour, skin smoothing, automatic blemish removal, brighter eyes and teeth, lifted under-eyes, all on one Strength slider. One-tap ideas: blur background, colour pop, slim under chin, golden hour, B&W, soft glow, square crop. |
+| **Face** | Smooth skin, reduce shine, under-eye circles, remove blemishes, whiten teeth, brighten eyes, eye colour, lip colour. Chin & neck: slim under chin (tucks a double chin and softens neck folds) and jawline. Shape: slim face, chin length, forehead, bigger eyes, slim/smaller nose, fuller lips, smile. With several people you can edit each face separately. |
 | **Adjust** | Brightness, contrast, highlights, shadows, whites, blacks, warmth, tint, vibrance, saturation, clarity, sharpen, dehaze, glow, fade, vignette, grain, plus an Auto button. |
 | **Looks** | 16 filters with live thumbnails of your photo, plus a strength slider. |
 | **Retouch** | Brushes: Heal (content-aware, Poisson-blended), Smooth, Whiten, Details, Reshape (liquify), Unshape, Eraser. |

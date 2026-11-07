@@ -21,6 +21,63 @@ export const CHEEK_L = [234, 93, 132, 58, 172, 136, 150];
 export const CHEEK_R = [454, 323, 361, 288, 397, 365, 379];
 export const JAW_L = [172, 136, 150, 149];
 export const JAW_R = [397, 365, 379, 378];
+// Average skin colour (0..255 RGB) from small patches on the cheeks and chin. Used to keep
+// under-chin edits on skin and off collars, hair and background.
+export function sampleSkin(img, P, m) {
+  const { width: W, height: H, data } = img;
+  const r = Math.max(2, Math.round(m.width * 0.025));
+  const acc = [0, 0, 0];
+  let n = 0;
+  for (const i of [205, 425, 199]) {
+    const [cx, cy] = P[i];
+    for (let y = Math.round(cy - r); y <= cy + r; y++) {
+      for (let x = Math.round(cx - r); x <= cx + r; x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H) continue;
+        const k = (y * W + x) * 4;
+        acc[0] += data[k]; acc[1] += data[k + 1]; acc[2] += data[k + 2]; n++;
+      }
+    }
+  }
+  return n ? acc.map((v) => v / n) : [180, 140, 120];
+}
+
+// Similarity of a colour to the skin colour, 0..1. Compares chromaticity mostly, so shadowed
+// skin still counts, plus a loose brightness term so a white collar doesn't.
+export function skinLikeness(r, g, b, skin) {
+  const sum = r + g + b + 1, ss = skin[0] + skin[1] + skin[2] + 1;
+  const dr = r / sum - skin[0] / ss, dg = g / sum - skin[1] / ss;
+  const chroma = (dr * dr + dg * dg) / 0.0016;
+  const lum = Math.log((sum / ss) + 1e-3);
+  const bright = (lum * lum) / 0.35;
+  return Math.exp(-(chroma + bright));
+}
+
+// Lower jaw contour from one jaw corner, under the chin, to the other.
+export const JAW_LINE = [172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397];
+
+// The jaw line in face coordinates: for each landmark, u = across the face (right), v = down from
+// the chin. Sorted by u so it can be interpolated as a curve v(u).
+export function jawProfile(P, m) {
+  const down = [-m.up[0], -m.up[1]];
+  const c = P[152];
+  const pts = JAW_LINE.map((i) => {
+    const d = [P[i][0] - c[0], P[i][1] - c[1]];
+    return [d[0] * m.right[0] + d[1] * m.right[1], d[0] * down[0] + d[1] * down[1]];
+  }).sort((a, b) => a[0] - b[0]);
+  return {
+    down, origin: c, u0: pts[0][0], u1: pts[pts.length - 1][0], pts,
+    at(u) {
+      if (u <= pts[0][0]) return pts[0][1];
+      for (let i = 1; i < pts.length; i++) {
+        if (u <= pts[i][0]) {
+          const t = (u - pts[i - 1][0]) / Math.max(1e-6, pts[i][0] - pts[i - 1][0]);
+          return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t;
+        }
+      }
+      return pts[pts.length - 1][1];
+    },
+  };
+}
 
 // Landmarks are normalised; convert a face to pixel points once.
 export function toPixels(lm, W, H) {

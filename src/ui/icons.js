@@ -34,6 +34,7 @@ const P = {
   blur: '<circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="6.5" opacity=".6"/><circle cx="12" cy="12" r="9.5" opacity=".3"/>',
   bw: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
   cutout: '<path d="M6 3v3M3 6h3M18 21v-3M21 18h-3"/><circle cx="12" cy="10" r="3"/><path d="M7 19a5 5 0 0 1 10 0"/>',
+  chin: '<path d="M6 4c0 7 2.5 11 6 11s6-4 6-11"/><path d="M8 20c1-2 2.3-3 4-3s3 1 4 3" stroke-dasharray="2 2.5"/><path d="m12 13 0-3M10.5 11.5 12 10l1.5 1.5"/>',
   none: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>',
 };
 

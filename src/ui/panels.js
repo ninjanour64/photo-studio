@@ -73,6 +73,12 @@ function magic(app) {
     { id: 'golden', label: 'Golden hour', icon: 'sun', run: () => toggleLook('golden') },
     { id: 'bw', label: 'Black & white', icon: 'bw', run: () => toggleLook('bw') },
     { id: 'glow', label: 'Soft glow', icon: 'sparkle', run: () => toggleLook('glow') },
+    { id: 'chin', label: 'Slim under chin', icon: 'chin', need: 'face', run: () => {
+      const on = !app.faces.some((_, i) => app.shapeFor(i).underChin > 0);
+      app.faces.forEach((_, i) => { app.shapeFor(i).underChin = on ? 55 : 0; });
+      app.updateWarp();
+      return on;
+    } },
     { id: 'square', label: 'Square crop', icon: 'crop', run: () => { const on = p.crop.aspect !== '1:1'; p.crop.aspect = on ? '1:1' : 'original'; p.crop.rect = null; return on; } },
   ];
   function toggleLook(id) {
@@ -80,9 +86,10 @@ function magic(app) {
     p.look.id = on ? id : 'none';
     return on;
   }
-  const isOn = (o) => ({ bgblur: p.bg.mode === 'blur', pop: p.bg.mode === 'bw', golden: p.look.id === 'golden', bw: p.look.id === 'bw', glow: p.look.id === 'glow', square: p.crop.aspect === '1:1' })[o.id];
+  const isOn = (o) => ({ bgblur: p.bg.mode === 'blur', pop: p.bg.mode === 'bw', golden: p.look.id === 'golden', bw: p.look.id === 'bw', glow: p.look.id === 'glow', square: p.crop.aspect === '1:1', chin: app.faces.some((_, i) => p.shape[i]?.underChin > 0) })[o.id];
   const grid = h('div', { class: 'tiles' });
   for (const o of ideas) {
+    if (o.need === 'face' && !app.faces.length) continue;
     const blocked = o.need === 'person' && app.personStatus !== 'done';
     const b = h('button', {
       type: 'button', class: 'tile' + (isOn(o) ? ' on' : ''), disabled: blocked && app.personStatus !== 'loading' ? true : null,
@@ -172,6 +179,18 @@ function face(app) {
     set: (v) => { for (const i of targets()) app.shapeFor(i)[key] = v; app.updateWarp(); },
     commit: () => app.commit(label),
   });
+  // Chin & neck: its own section so it's easy to find. Follows the same face choice as Shape.
+  const chinSlider = slider({
+    label: 'Slim under chin', min: 0, max: 100, def: 0,
+    get: () => app.shapeFor(targets()[0]).underChin,
+    set: (v) => { for (const i of targets()) app.shapeFor(i).underChin = v; app.updateWarp(); },
+    commit: () => app.commit('Slim under chin'),
+  });
+  out.push(section('Chin & neck',
+    chinSlider,
+    hint('Tucks a double chin up toward the jaw and softens neck folds. Keep it under 60 for a natural look. For stubborn spots, use Reshape in Retouch and push upward under the jaw.'),
+    shapeSlider('Jawline', 'jaw')));
+
   const shapeSec = section('Shape');
   if (app.faces.length > 1) {
     shapeSec.append(chips([{ id: 'all', label: 'All faces' }, ...app.faces.map((_, i) => ({ id: String(i), label: `Face ${i + 1}` }))],
@@ -179,7 +198,7 @@ function face(app) {
     shapeSec.append(hint('Tip: tap the numbers on the photo to pick a face.'));
   }
   shapeSec.append(
-    shapeSlider('Slim face', 'slim'), shapeSlider('Jawline', 'jaw'), shapeSlider('Chin length', 'chin'),
+    shapeSlider('Slim face', 'slim'), shapeSlider('Chin length', 'chin'),
     shapeSlider('Forehead', 'forehead'), shapeSlider('Bigger eyes', 'eyes'), shapeSlider('Slim nose', 'noseSlim'),
     shapeSlider('Smaller nose', 'noseSmall'), shapeSlider('Fuller lips', 'lips'), shapeSlider('Smile', 'smile'),
     h('div', { class: 'row-end' }, button('Reset shape', () => {

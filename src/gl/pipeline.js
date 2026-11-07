@@ -272,6 +272,8 @@ export class Pipeline {
       gl.uniform1f(u.uSmooth, face.smooth);
       gl.uniform1f(u.uShine, face.shine);
       gl.uniform1f(u.uUnderEye, face.underEye);
+      gl.uniform1f(u.uUnderChin, face.underChin || 0);
+      gl.uniform3fv(u.uSkin, face.skin || [0.7, 0.55, 0.45]);
       gl.uniform1f(u.uTeeth, face.teeth);
       gl.uniform1f(u.uEyes, face.eyes);
       gl.uniform1f(u.uEyeColorAmt, face.eyeColorAmt);
